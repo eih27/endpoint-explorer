@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background-color: #fbfbfa;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Recharts: keep focus outlines from boxing the whole SVG on click */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}
+
+.recharts-cartesian-axis-tick-value {
+  font-size: 11px;
+  fill: #767676;
+}
+
+::selection {
+  background: rgba(47, 111, 106, 0.16);
+}
+
+@keyframes ee-fade {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ee-fade {
+  animation: ee-fade 0.32s ease both;
+}
+
+@keyframes ee-shimmer {
+  0% {
+    background-position: -400px 0;
+  }
+  100% {
+    background-position: 400px 0;
+  }
+}
+
+.ee-skeleton {
+  background: linear-gradient(90deg, #f0f0ee 25%, #e6e6e3 37%, #f0f0ee 63%);
+  background-size: 800px 100%;
+  animation: ee-shimmer 1.4s ease-in-out infinite;
+}
