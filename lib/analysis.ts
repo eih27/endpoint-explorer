@@ -370,41 +370,35 @@ export function week8Distribution(study: Study): DistributionResult {
 
 export type PlaceboWindow = "early" | "full";
 
-export interface PlaceboThresholdRow {
-  threshold: number; // 10, 20, 30
-  earlyPct: number;
-  fullPct: number;
+export interface PlaceboCurvePoint {
+  threshold: number;
+  pct: number;
 }
 
-export function placeboResponse(study: Study): {
-  rows: PlaceboThresholdRow[];
-  earlyN: number;
-  fullN: number;
-} {
+/**
+ * Share of placebo participants improving by at least each threshold (0-50%,
+ * in 1-point steps), for a given window. Used to drive a continuous slider:
+ * dragging the threshold moves along this precomputed curve so the UI stays
+ * smooth without recomputing per frame.
+ */
+export function placeboResponseCurve(
+  study: Study,
+  win: PlaceboWindow,
+): { curve: PlaceboCurvePoint[]; n: number } {
+  const key = win === "early" ? "w2" : "w8";
   const placebo = study.participants.filter((p) => p.arm === "placebo");
-  const w2 = "w2";
-  const w8 = "w8";
+  const eligible = placebo.filter((p) => typeof p.scores[key] === "number");
+  const n = eligible.length;
 
-  const improvedBy = (key: string, pct: number) => {
-    const eligible = placebo.filter((p) => typeof p.scores[key] === "number");
+  const curve: PlaceboCurvePoint[] = [];
+  for (let t = 0; t <= 50; t += 1) {
     const hit = eligible.filter((p) => {
       const s = p.scores[key] as number;
-      return p.baseline > 0 && (p.baseline - s) / p.baseline >= pct / 100;
-    });
-    return { pct: eligible.length ? (hit.length / eligible.length) * 100 : 0, n: eligible.length };
-  };
-
-  const rows: PlaceboThresholdRow[] = [10, 20, 30].map((t) => ({
-    threshold: t,
-    earlyPct: round(improvedBy(w2, t).pct, 0),
-    fullPct: round(improvedBy(w8, t).pct, 0),
-  }));
-
-  return {
-    rows,
-    earlyN: improvedBy(w2, 10).n,
-    fullN: improvedBy(w8, 10).n,
-  };
+      return p.baseline > 0 && (p.baseline - s) / p.baseline >= t / 100;
+    }).length;
+    curve.push({ threshold: t, pct: n ? round((hit / n) * 100, 0) : 0 });
+  }
+  return { curve, n };
 }
 
 // ---------------------------------------------------------------------------
@@ -438,6 +432,74 @@ export function retention(study: Study, scope: RetentionScope): RetentionStep[] 
       short: v.short,
       count,
       pct: round((count / base) * 100, 0),
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Site-level breakdown
+// ---------------------------------------------------------------------------
+
+export interface SiteRow {
+  site: string;
+  n: number;
+  completionPct: number;
+  meanBaseline: number;
+  meanChange: number | null;
+  flags: string[];
+}
+
+/**
+ * Per-site enrollment, completion, and mean Week 8 change, with simple
+ * deterministic flags (not a statistical test) when a site's completion or
+ * mean change sits notably away from the study-wide figure. Site samples are
+ * small by construction (~n/6), so this is meant to prompt a closer look, not
+ * to imply a site-conduct finding.
+ */
+export function siteBreakdown(study: Study): SiteRow[] {
+  const last = study.visits[study.visits.length - 1].key;
+  const sites = Array.from(new Set(study.participants.map((p) => p.site))).sort();
+
+  const allCompleters = study.participants.filter((p) => typeof p.scores[last] === "number");
+  const overallCompletionPct = round(
+    (allCompleters.length / study.participants.length) * 100,
+    0,
+  );
+  const allChanges = allCompleters.map((p) => (p.scores[last] as number) - p.baseline);
+  const overallMeanChange = mean(allChanges);
+  const overallSdChange = sd(allChanges);
+
+  return sites.map((site) => {
+    const rows = study.participants.filter((p) => p.site === site);
+    const completers = rows.filter((p) => typeof p.scores[last] === "number");
+    const changes = completers.map((p) => (p.scores[last] as number) - p.baseline);
+    const completionPct = round((completers.length / rows.length) * 100, 0);
+    const meanChange = changes.length ? round(mean(changes), 1) : null;
+
+    // Compare each site's mean to the study mean using the standard error of
+    // a same-sized sample (pooled SD / sqrt(n)) rather than the raw SD, since
+    // we're asking "is this site's average unusual," not "is this person."
+    const siteSem = changes.length > 1 ? overallSdChange / Math.sqrt(changes.length) : 0;
+
+    const flags: string[] = [];
+    if (overallCompletionPct - completionPct >= 15) {
+      flags.push("Completion well below study average");
+    }
+    if (meanChange !== null && siteSem > 0 && Math.abs(meanChange - overallMeanChange) >= 1.5 * siteSem) {
+      flags.push(
+        meanChange > overallMeanChange
+          ? "Mean change notably smaller than study average"
+          : "Mean change notably larger than study average",
+      );
+    }
+
+    return {
+      site,
+      n: rows.length,
+      completionPct,
+      meanBaseline: round(mean(rows.map((p) => p.baseline)), 1),
+      meanChange,
+      flags,
     };
   });
 }

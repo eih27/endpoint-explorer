@@ -11,12 +11,13 @@ import { ParticipantDistribution } from "@/components/ParticipantDistribution";
 import { ParticipantDrawer } from "@/components/ParticipantDrawer";
 import { ParticipantExplorer } from "@/components/ParticipantExplorer";
 import { PlaceboResponseExplorer } from "@/components/PlaceboResponseExplorer";
+import { SiteBreakdown } from "@/components/SiteBreakdown";
 import { Section } from "@/components/ui/primitives";
 import { StudySummary } from "@/components/StudySummary";
 import {
   healthSignals,
-  placeboResponse,
   retention,
+  siteBreakdown,
   studySummary,
   trajectory,
   week8Distribution,
@@ -48,10 +49,10 @@ export default function Page() {
       traj: trajectory(study),
       signals: healthSignals(study),
       dist: week8Distribution(study),
-      placebo: placeboResponse(study),
       retentionOverall: retention(study, "overall"),
       retentionTreatment: retention(study, "treatment"),
       retentionPlacebo: retention(study, "placebo"),
+      sites: siteBreakdown(study),
     };
   }, [studyId]);
 
@@ -130,11 +131,7 @@ export default function Page() {
               title="Placebo response explorer"
               question="How much of the placebo arm counts as 'improved' depends on the window and threshold."
             >
-              <PlaceboResponseExplorer
-                rows={model.placebo.rows}
-                earlyN={model.placebo.earlyN}
-                fullN={model.placebo.fullN}
-              />
+              <PlaceboResponseExplorer study={model.study} />
             </Section>
 
             <Section
@@ -150,6 +147,15 @@ export default function Page() {
                 treatmentSteps={model.retentionTreatment}
                 placeboSteps={model.retentionPlacebo}
               />
+            </Section>
+
+            <Section
+              id="sites"
+              eyebrow="Is anything site-specific going on?"
+              title="Site-level breakdown"
+              question="Enrollment, completion, and mean change by site — small samples, so read differences as a prompt to look closer, not proof of a site issue."
+            >
+              <SiteBreakdown rows={model.sites} />
             </Section>
 
             <Section
